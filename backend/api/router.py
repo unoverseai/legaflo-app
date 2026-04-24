@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
@@ -6,6 +7,7 @@ from typing import List, Optional
 # Placeholder import for the agent
 from agents.lawyer_chat import run_lawyer_chat
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class ChatRequest(BaseModel):
@@ -33,4 +35,5 @@ async def legal_ai_chat(request: ChatRequest):
             is_sgi_tagged=True
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("An error occurred during legal_ai_chat execution")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
