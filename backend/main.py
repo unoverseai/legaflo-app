@@ -1,10 +1,28 @@
+import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from api.router import router as api_router
+
+REQUIRED_ENV_VARS = [
+    "SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "OPENAI_API_KEY",
+    "DIGITAL_SCR_API_KEY",
+    "DIGITAL_SCR_BASE_URL",
+]
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    missing_vars = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+    if missing_vars:
+        raise RuntimeError(f"Missing required environment variables: {', '.join(missing_vars)}")
+    yield
 
 app = FastAPI(
     title="LegaFlo Backend API",
     description="Agentic Orchestration and API endpoints for the LegaFlo Operating System",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.include_router(api_router, prefix="/api/v1")

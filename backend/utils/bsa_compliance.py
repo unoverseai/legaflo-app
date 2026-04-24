@@ -12,6 +12,11 @@ def calculate_file_hash(file_bytes: bytes) -> str:
     Returns:
         str: The hexadecimal representation of the SHA-256 hash.
     """
-    sha256_hash = hashlib.sha256()
-    sha256_hash.update(file_bytes)
-    return sha256_hash.hexdigest()
+    try:
+        if not isinstance(file_bytes, bytes):
+            raise TypeError("Input must be a byte sequence.")
+        sha256_hash = hashlib.sha256()
+        sha256_hash.update(file_bytes)
+        return sha256_hash.hexdigest()
+    except Exception as e:
+        raise ValueError(f"Failed to calculate SHA-256 hash: {str(e)}")

@@ -1,5 +1,6 @@
-from typing import List, Dict, Any, TypedDict
+from typing import List, Dict, Any, TypedDict, Literal
 from langchain_core.messages import HumanMessage, AIMessage
+from langgraph.graph import StateGraph, END
 
 # Define the State for the LangGraph
 class GraphState(TypedDict):
@@ -39,38 +40,68 @@ def mercy_check(state: GraphState) -> GraphState:
     state["verified_citations"] = verified
     return state
 
+def route_after_mercy_check(state: GraphState) -> Literal["format_final_response", "error_node"]:
+    """
+    Conditional Edge logic. Routes to an error node if the citations list is empty.
+    """
+    if not state.get("verified_citations"):
+        return "error_node"
+    return "format_final_response"
+
+def error_node(state: GraphState) -> GraphState:
+    """
+    Error node to handle the case where no valid citations were found.
+    """
+    state["final_response"] = "I could not verify the case laws. Please consult a human advocate."
+    return state
+
 def format_final_response(state: GraphState) -> GraphState:
     """
     Node 3: Formats the final response, ensuring unverified citations are removed.
     """
-    if not state["verified_citations"] and state["draft_citations"]:
-        state["final_response"] = "I could not verify the case laws. Please consult a human advocate."
-    else:
-        state["final_response"] = state["draft_response"]
-        
+    state["final_response"] = state["draft_response"]
     return state
+
+# Compile the graph
+workflow = StateGraph(GraphState)
+workflow.add_node("generate_draft", generate_draft)
+workflow.add_node("mercy_check", mercy_check)
+workflow.add_node("error_node", error_node)
+workflow.add_node("format_final_response", format_final_response)
+
+workflow.set_entry_point("generate_draft")
+workflow.add_edge("generate_draft", "mercy_check")
+workflow.add_conditional_edges(
+    "mercy_check",
+    route_after_mercy_check,
+    {
+        "error_node": "error_node",
+        "format_final_response": "format_final_response"
+    }
+)
+workflow.add_edge("error_node", END)
+workflow.add_edge("format_final_response", END)
+
+app_graph = workflow.compile()
 
 def run_lawyer_chat(message: str, history: List[dict]) -> Dict[str, Any]:
     """
-    Placeholder runner for the LangGraph workflow.
-    In a real implementation, this would compile the graph and invoke it.
+    Runner for the LangGraph workflow.
     """
     # Initialize state
-    state = GraphState(
-        history=history,
-        current_message=message,
-        draft_response="",
-        draft_citations=[],
-        verified_citations=[],
-        final_response=""
-    )
+    initial_state = {
+        "history": history,
+        "current_message": message,
+        "draft_response": "",
+        "draft_citations": [],
+        "verified_citations": [],
+        "final_response": ""
+    }
     
-    # Run nodes sequentially
-    state = generate_draft(state)
-    state = mercy_check(state)
-    state = format_final_response(state)
+    # Run the graph
+    result = app_graph.invoke(initial_state)
     
     return {
-        "response": state["final_response"],
-        "citations": state["verified_citations"]
+        "response": result.get("final_response", ""),
+        "citations": result.get("verified_citations", [])
     }
