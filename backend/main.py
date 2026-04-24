@@ -33,4 +33,7 @@ def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    config_host = os.getenv("HOST", "0.0.0.0")
+    config_port = int(os.getenv("PORT", "8000"))
+    config_reload = os.getenv("ENVIRONMENT", "production").lower() in ("development", "dev")
+    uvicorn.run("main:app", host=config_host, port=config_port, reload=config_reload)
