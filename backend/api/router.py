@@ -28,7 +28,7 @@ async def legal_ai_chat(request: ChatRequest):
     """
     try:
         # Pass the input to the agent workflow without blocking the event loop
-        result = await asyncio.to_thread(run_lawyer_chat, request.message, request.history or [])
+        result = await asyncio.to_thread(run_lawyer_chat, request.user_id, request.message, request.history or [])
         return ChatResponse(
             response=result.get("response", "No response generated."),
             citations=result.get("citations", []),

@@ -1,9 +1,13 @@
+import logging
 from typing import List, Dict, Any, TypedDict, Literal
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
 
+logger = logging.getLogger(__name__)
+
 # Define the State for the LangGraph
 class GraphState(TypedDict):
+    user_id: str
     history: List[Any]
     current_message: str
     draft_response: str
@@ -84,12 +88,15 @@ workflow.add_edge("format_final_response", END)
 
 app_graph = workflow.compile()
 
-def run_lawyer_chat(message: str, history: List[dict]) -> Dict[str, Any]:
+def run_lawyer_chat(user_id: str, message: str, history: List[dict]) -> Dict[str, Any]:
     """
     Runner for the LangGraph workflow.
     """
+    logger.info(f"Starting AI Lawyer Chat for user_id={user_id}")
+    
     # Initialize state
     initial_state = {
+        "user_id": user_id,
         "history": history,
         "current_message": message,
         "draft_response": "",
