@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
@@ -24,8 +25,8 @@ async def legal_ai_chat(request: ChatRequest):
     Invokes the LangGraph agent and returns the verified response.
     """
     try:
-        # Pass the input to the agent workflow
-        result = run_lawyer_chat(request.message, request.history or [])
+        # Pass the input to the agent workflow without blocking the event loop
+        result = await asyncio.to_thread(run_lawyer_chat, request.message, request.history or [])
         return ChatResponse(
             response=result.get("response", "No response generated."),
             citations=result.get("citations", []),
