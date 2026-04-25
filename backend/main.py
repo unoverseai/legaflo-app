@@ -6,7 +6,7 @@ from api.router import router as api_router
 REQUIRED_ENV_VARS = [
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
-    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
     "DIGITAL_SCR_API_KEY",
     "DIGITAL_SCR_BASE_URL",
 ]
