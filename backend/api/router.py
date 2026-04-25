@@ -2,7 +2,7 @@ import asyncio
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Optional
 
 # Placeholder import for the agent
 from agents.lawyer_chat import run_lawyer_chat
@@ -13,11 +13,11 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     user_id: str
     message: str
-    history: Optional[List[dict]] = None
+    history: Optional[list[dict]] = None
 
 class ChatResponse(BaseModel):
     response: str
-    citations: List[str]
+    citations: list[str]
     is_sgi_tagged: bool = True
 
 @router.post("/legal-ai/chat", response_model=ChatResponse)

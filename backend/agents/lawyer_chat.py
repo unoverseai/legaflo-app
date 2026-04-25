@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any, TypedDict, Literal
+from typing import Any, TypedDict, Literal
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
 
@@ -8,11 +8,11 @@ logger = logging.getLogger(__name__)
 # Define the State for the LangGraph
 class GraphState(TypedDict):
     user_id: str
-    history: List[Any]
+    history: list[Any]
     current_message: str
     draft_response: str
-    draft_citations: List[str]
-    verified_citations: List[str]
+    draft_citations: list[str]
+    verified_citations: list[str]
     final_response: str
 
 def generate_draft(state: GraphState) -> GraphState:
@@ -20,7 +20,7 @@ def generate_draft(state: GraphState) -> GraphState:
     Node 1: Drafts the initial response and extracts potential citations.
     """
     # Placeholder for LLM invocation
-    state["draft_response"] = "Based on your query, the Supreme Court has held..."
+    state["draft_response"] = f"Based on your query regarding '{state['current_message']}', the Supreme Court has held..."
     state["draft_citations"] = ["Ramesh Kumar vs. State of Maharashtra"]
     return state
 
@@ -35,11 +35,13 @@ def mercy_check(state: GraphState) -> GraphState:
         # e.g., response = requests.get(f"{DIGITAL_SCR_BASE_URL}/search", params={"q": citation})
         # if response.json().get("found"): verified.append(citation)
         
-        # For this placeholder, we mock a successful verification
-        is_verified = True # Replace with actual API check
+        # Fail-Closed Security
+        is_verified = False # Replace with actual API check
         
         if is_verified:
             verified.append(citation)
+        else:
+            logger.warning("Failed to verify citation: %s", citation)
             
     state["verified_citations"] = verified
     return state
@@ -63,7 +65,10 @@ def format_final_response(state: GraphState) -> GraphState:
     """
     Node 3: Formats the final response, ensuring unverified citations are removed.
     """
-    state["final_response"] = state["draft_response"]
+    base_response = state["draft_response"]
+    if len(state["draft_citations"]) != len(state["verified_citations"]):
+        base_response += "\nNote: Only verified legal citations are shown."
+    state["final_response"] = base_response
     return state
 
 # Compile the graph
@@ -88,11 +93,11 @@ workflow.add_edge("format_final_response", END)
 
 app_graph = workflow.compile()
 
-def run_lawyer_chat(user_id: str, message: str, history: List[dict]) -> Dict[str, Any]:
+def run_lawyer_chat(user_id: str, message: str, history: list[dict]) -> dict[str, Any]:
     """
     Runner for the LangGraph workflow.
     """
-    logger.info(f"Starting AI Lawyer Chat for user_id={user_id}")
+    logger.info("Starting AI Lawyer Chat for user_id=%s", user_id)
     
     # Initialize state
     initial_state = {
