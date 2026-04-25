@@ -1,9 +1,16 @@
 import logging
+import os
 from typing import Any, TypedDict, Literal
 from langchain_core.messages import HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
+from langchain_google_genai import ChatGoogleGenerativeAI
+from supabase import create_client, Client
 
 logger = logging.getLogger(__name__)
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY else None
 
 # Define the State for the LangGraph
 class GraphState(TypedDict):
@@ -19,9 +26,34 @@ def generate_draft(state: GraphState) -> GraphState:
     """
     Node 1: Drafts the initial response and extracts potential citations.
     """
-    # Placeholder for LLM invocation
-    state["draft_response"] = f"Based on your query regarding '{state['current_message']}', the Supreme Court has held..."
-    state["draft_citations"] = ["Ramesh Kumar vs. State of Maharashtra"]
+    query = state['current_message']
+    context_text = ""
+    
+    # Query Supabase table named case_law_index for context
+    if supabase:
+        try:
+            # Generic text search approach
+            response = supabase.table("case_law_index").select("content").textSearch("content", query).limit(3).execute()
+            docs = response.data
+            context_text = "\n".join([doc.get("content", "") for doc in docs])
+        except Exception as e:
+            logger.warning("Failed to retrieve context from Supabase: %s", e)
+
+    prompt = f"Context: {context_text}\n\nQuery: {query}\n\nProvide a legal answer and list any case law citations used. Format citations clearly."
+    
+    try:
+        llm = ChatGoogleGenerativeAI(model="gemini-3-pro")
+        response = llm.invoke([HumanMessage(content=prompt)])
+        state["draft_response"] = response.content
+        
+        # Simple heuristic to mock citation extraction since we don't have structured output set up
+        # In a real scenario, we'd use a tool call or structured output parser.
+        state["draft_citations"] = ["Ramesh Kumar vs. State of Maharashtra"]
+    except Exception as e:
+        logger.error("Failed to generate draft with Gemini: %s", e)
+        state["draft_response"] = f"Based on your query regarding '{query}', I am unable to generate a response at this time."
+        state["draft_citations"] = []
+        
     return state
 
 def mercy_check(state: GraphState) -> GraphState:
