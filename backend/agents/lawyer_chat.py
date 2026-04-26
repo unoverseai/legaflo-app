@@ -22,6 +22,18 @@ class GraphState(TypedDict):
     verified_citations: list[str]
     final_response: str
 
+import json
+from pydantic import BaseModel, Field
+
+class StructuredDraftResponse(BaseModel):
+    layman_summary: str = Field(description="A simple, easy to understand summary of the legal advice.")
+    legal_ingredients: list[str] = Field(description="Key legal ingredients or elements of the offense/issue.")
+    punishment_or_remedy: str = Field(description="Potential punishment or legal remedy available.")
+    procedure_note: str = Field(description="Notes on the legal procedure to be followed.")
+    bare_act_text: str = Field(description="Relevant text from the Bare Act.")
+    legacy_alert: str = Field(description="Any alerts regarding legacy laws or recent amendments.")
+    citations: list[str] = Field(description="List of case law citations used in the answer.")
+
 def generate_draft(state: GraphState) -> GraphState:
     """
     Node 1: Drafts the initial response and extracts potential citations.
@@ -39,19 +51,35 @@ def generate_draft(state: GraphState) -> GraphState:
         except Exception as e:
             logger.warning("Failed to retrieve context from Supabase: %s", e)
 
-    prompt = f"Context: {context_text}\n\nQuery: {query}\n\nProvide a legal answer and list any case law citations used. Format citations clearly."
+    prompt = f"""You are an expert Indian Legal AI Assistant.
+Use the following context from Supabase to answer the user's query accurately.
+You must strictly output a JSON object representing your answer.
+
+Context:
+{context_text}
+
+Query:
+{query}"""
     
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-3-pro")
-        response = llm.invoke([HumanMessage(content=prompt)])
-        state["draft_response"] = response.content
+        llm = ChatGoogleGenerativeAI(model="gemini-3-flash")
+        structured_llm = llm.with_structured_output(StructuredDraftResponse)
         
-        # Simple heuristic to mock citation extraction since we don't have structured output set up
-        # In a real scenario, we'd use a tool call or structured output parser.
-        state["draft_citations"] = ["Ramesh Kumar vs. State of Maharashtra"]
+        response = structured_llm.invoke([HumanMessage(content=prompt)])
+        
+        state["draft_response"] = json.dumps(response.model_dump(), indent=2)
+        state["draft_citations"] = response.citations
     except Exception as e:
         logger.error("Failed to generate draft with Gemini: %s", e)
-        state["draft_response"] = f"Based on your query regarding '{query}', I am unable to generate a response at this time."
+        fallback = {
+            "layman_summary": f"Based on your query regarding '{query}', I am unable to generate a response at this time.",
+            "legal_ingredients": [],
+            "punishment_or_remedy": "",
+            "procedure_note": "",
+            "bare_act_text": "",
+            "legacy_alert": ""
+        }
+        state["draft_response"] = json.dumps(fallback, indent=2)
         state["draft_citations"] = []
         
     return state
